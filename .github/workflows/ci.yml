@@ -6,4 +6,7 @@ jobs:
     container: ghcr.io/mleitass/m1-devcontainer:2026-09-29
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare template self-check
+        if: github.repository == 'mleitass/m1-setup-check'
+        run: echo 'Template repository self-check; not participant evidence.' > setup/claude-answer.md
       - run: make verify-setup

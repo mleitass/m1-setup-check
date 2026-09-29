@@ -16,6 +16,10 @@
 
 Fails `setup/claude-answer.md` apstiprina, ka Claude Code pieteikšanās Codespace vidē ir izdevusies. Tukšs vai neesošs fails neizturēs pārbaudi.
 
+Pašas veidnes CI izveido īslaicīgu atbildes failu tikai `mleitass/m1-setup-check`
+izpildes vidē. No veidnes izveidotajās dalībnieku repozitorijās šis solis netiek
+izpildīts, tāpēc dalībnieka atbildes fails joprojām ir obligāts.
+
 ## A1 · Līgums pirms koda (izvēles uzdevums)
 
 Izlasi `tracker/CR-2.md` un papildini CR-2 daļu failā `docs/openapi.yaml`:
