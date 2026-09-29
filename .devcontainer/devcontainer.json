@@ -1,0 +1,19 @@
+{
+  "name": "M1 · FITA",
+  "image": "ghcr.io/mleitass/m1-devcontainer:2026-09-29",
+  "hostRequirements": { "cpus": 2 },
+  "forwardPorts": [8000, 8001],
+  "portsAttributes": {
+    "8000": { "label": "API — Swagger UI: /docs", "onAutoForward": "notify" },
+    "8001": { "label": "Mock OMD", "onAutoForward": "silent" }
+  },
+  "containerEnv": {
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"],
+      "settings": { "terminal.integrated.defaultProfile.linux": "bash" }
+    }
+  }
+}

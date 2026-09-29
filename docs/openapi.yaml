@@ -1,0 +1,273 @@
+# Ezermalas pieteikumu sistēma · iesniegumu API · līgums v0
+# Līgumu maina analītiķis. Katra izmaiņa: atsevišķs komits ar pieteikuma ID.
+
+openapi: 3.0.3
+info:
+  title: Ezermalas pieteikumu sistēma · iesniegumu API
+  version: 0.1.0
+  description: |
+    Iedzīvotāju iesniegumu pieņemšana un apskate.
+
+    Šis līgums ir analītiķa artefakts un patiesības avots (source of truth).
+    Ja programma atbild citādi, nekā rakstīts šeit, tā ir kļūda programmā
+    vai līgumā, un par to jālemj.
+
+    > Noteikumi vienkāršoti mācību vajadzībām. Ezermalas novada pašvaldība
+    > un OMD reģistrs ir izdomāti. Visi dati ir sintētiski.
+servers:
+  - url: http://localhost:8000
+    description: Lokālais prototips (Codespace)
+tags:
+  - name: Iesniegumi
+    description: Iesnieguma pieņemšana un apskate (R1–R3)
+  - name: Sistēma
+    description: Tehniskie galapunkti (R4)
+
+paths:
+  /health:
+    get:
+      tags: [Sistēma]
+      operationId: getHealth
+      summary: Vai serviss darbojas
+      responses:
+        '200':
+          description: Serviss darbojas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /submissions:
+    post:
+      tags: [Iesniegumi]
+      operationId: createSubmission
+      summary: Iesniegt iesniegumu
+      description: |
+        Pieņem iesniegumu, piešķir ID, statusu `RECEIVED`, saņemšanas laiku
+        un atbildes termiņu.
+
+        **Atbildes kanāls (CR-2).** Pēc saņemšanas sistēma pārbauda
+        iesniedzēja oficiālo e-adresi OMD reģistrā un nosaka `replyChannel`:
+        - OMD `ACTIVE` → `E_ADDRESS`, neatkarīgi no `preferredChannel`.
+        - OMD `NOT_ACTIVATED` → `preferredChannel`. Ja izvēlēts `E_ADDRESS`,
+          bet e-adrese nav aktivizēta: `EMAIL`, un `reasonCode` norāda iemeslu.
+        - OMD 404 (reģistrā nav ieraksta) → tāpat kā `NOT_ACTIVATED`.
+
+        *CR-2 daļa nav pabeigta: skatīt `tracker/CR-2.md` un A1.*
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionCreate'
+            example:
+              personalCode: '32000000001'
+              fullName: Līga Ozoliņa-Kalniņa
+              email: liga@example.com
+              preferredChannel: EMAIL
+              topic: ROADS
+              subject: Bedre Ezera ielā
+              body: Pie Ezera ielas 12 ir liela bedre. Lūdzu, salabojiet to.
+      responses:
+        '201':
+          description: Iesniegums pieņemts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionCreated'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /submissions/{id}:
+    get:
+      tags: [Iesniegumi]
+      operationId: getSubmission
+      summary: Iesniegums pēc ID
+      description: Darbinieks atver vienu iesniegumu pēc tā ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Iesnieguma ID
+          schema:
+            type: string
+            example: IES-2026-000123
+      responses:
+        '200':
+          description: Iesniegums atrasts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 0.1.0
+
+    SubmissionCreate:
+      type: object
+      required:
+        - personalCode
+        - fullName
+        - email
+        - preferredChannel
+        - topic
+        - subject
+        - body
+      properties:
+        personalCode:
+          type: string
+          description: Iesniedzēja personas kods
+          example: '32000000001'
+        fullName:
+          type: string
+          description: Iesniedzēja vārds un uzvārds
+          example: Jānis Bērziņš
+        email:
+          type: string
+          format: email
+          description: Iesniedzēja e-pasts
+          example: janis@example.com
+        preferredChannel:
+          $ref: '#/components/schemas/PreferredChannel'
+        topic:
+          $ref: '#/components/schemas/Topic'
+        subject:
+          type: string
+          description: Iesnieguma temats
+          example: Bedre Ezera ielā
+        body:
+          type: string
+          description: Iesnieguma teksts
+          example: Pie Ezera ielas 12 ir liela bedre. Lūdzu, salabojiet to.
+
+    SubmissionCreated:
+      type: object
+      required: [id, status, receivedAt, dueDate, replyChannel]
+      properties:
+        id:
+          type: string
+          description: Iesnieguma ID
+          example: IES-2026-000123
+        status:
+          $ref: '#/components/schemas/SubmissionStatus'
+        receivedAt:
+          type: string
+          format: date-time
+          description: Saņemšanas laiks
+          example: '2026-10-01T09:15:00Z'
+        dueDate:
+          type: string
+          description: Atbildes termiņš
+          example: '2026-11-02'
+        replyChannel:
+          $ref: '#/components/schemas/ReplyChannel'
+        reasonCode:
+          type: string
+          nullable: true
+          description: |
+            Kāpēc `replyChannel` atšķiras no `preferredChannel`.
+            `null`, ja kanāls sakrīt. *CR-2: vērtību saraksts nav pabeigts.*
+          example: E_ADDRESS_NOT_ACTIVE
+
+    Submission:
+      description: Pilns iesnieguma ieraksts
+      allOf:
+        - $ref: '#/components/schemas/SubmissionCreated'
+        - $ref: '#/components/schemas/SubmissionCreate'
+
+    PreferredChannel:
+      type: string
+      description: Kā iesniedzējs vēlas saņemt atbildi
+      enum: [EMAIL, POST, E_ADDRESS]
+      example: EMAIL
+
+    ReplyChannel:
+      type: string
+      description: |
+        Kanāls, pa kuru sūtīs atbildi (nosaka sistēma, CR-2).
+        *CR-2: vērtību saraksts nav pabeigts.*
+      enum: [EMAIL, POST, E_ADDRESS]
+      example: E_ADDRESS
+
+    Topic:
+      type: string
+      description: |
+        Iesnieguma tēma:
+        `ROADS` Ceļi un ielas · `WASTE` Atkritumi ·
+        `PLANNING` Teritorijas plānošana · `OTHER` Cits
+      enum: [ROADS, WASTE, PLANNING, OTHER]
+      example: ROADS
+
+    SubmissionStatus:
+      type: string
+      description: Iesnieguma statuss. Jauns iesniegums vienmēr ir `RECEIVED`.
+      enum: [RECEIVED, IN_PROGRESS, FORWARDED, ANSWERED, WITHDRAWN]
+      example: RECEIVED
+
+    Error:
+      type: object
+      description: Vienota kļūdu shēma visiem galapunktiem
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Kļūdas kods, piemēram, `VALIDATION_ERROR` vai `NOT_FOUND`
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              description: Cilvēkam lasāms apraksts. Bez personas datiem.
+              example: Request validation failed
+            details:
+              type: array
+              description: Katra lauka kļūda atsevišķi (tikai `VALIDATION_ERROR`)
+              items:
+                type: object
+                required: [field, issue]
+                properties:
+                  field:
+                    type: string
+                    example: personalCode
+                  issue:
+                    type: string
+                    example: INVALID_FORMAT
+
+  responses:
+    ValidationError:
+      description: Kļūdains pieprasījums. Iesniegums netiek saglabāts.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Request validation failed
+              details:
+                - field: personalCode
+                  issue: INVALID_FORMAT
+    NotFound:
+      description: Iesniegums ar šādu ID nav atrasts
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: NOT_FOUND
+              message: Submission not found
